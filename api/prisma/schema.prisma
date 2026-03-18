@@ -1,0 +1,24 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Modelagem do Usuário (Cliente ou Prestador)
+model Usuario {
+  id         String      @id @default(uuid())
+  nome       String
+  email      String      @unique
+  senha      String      // A senha salva aqui será Criptografada via Bcrypt!
+  telefone   String?
+  tipo       TipoUsuario @default(CLIENTE)
+  criadoEm   DateTime    @default(now())
+}
+
+enum TipoUsuario {
+  CLIENTE
+  PRESTADOR
+}

@@ -38,12 +38,23 @@ O cliente escolhe, e o bot automaticamente insere o evento no Google Calendar do
 
 ---
 
-## 💻 4. Requisitos Técnicos Futuros (O que falta construir)
+## 💻 4. Progresso do Desenvolvimento e Arquitetura Técnica
 
-A Prova de Conceito (PoC) atual do bot de 1-para-1 já funciona, mas para atingir este MVP, precisaremos evoluir as seguintes peças de arquitetura:
+Até o momento, evoluímos a Prova de Conceito (PoC) simples do bot e já começamos a estruturar o Backend Oficial do MVP em um Monorepo:
 
-- [ ] **Banco de Dados Real (SQL ou NoSQL):** Substituir o `servicosMock.js` por um banco (como PostgreSQL ou MongoDB) com tabelas de `Profissionais` e `Serviços`.
-- [ ] **Front-End Administrativo (Web):** Desenvolver um painel em React/Vue para que o Prestador possa criar sua conta, definir horários e autorizar o Google Calendar via OAuth2 (Consent Screen).
-- [ ] **Serviço de Geolocalização:** Integrar alguma API de Mapas (Google Maps, Mapbox) para calcular distâncias entre o cliente e o prestador.
-- [ ] **Módulo de Matching (`matchService.js`):** Um serviço focado exclusivamente em cruzar os dados do DB (Banco) + Geolocation + Calendar Free/Busy.
-- [ ] **Segurança e Validação:** Medidas para evitar agendamentos falsos, confirmação de identidade do prestador, e limite de *rate-limiting* no bot.
+### ✅ Concluído (Fase 1: Bot e Integrações)
+- **Bot Inteligente (Telegram):** Máquina de estados rodando com Node.js (Telegraf).
+- **Busca Semântica:** Integração com Google Gemini 2.5 Flash (`aiService`).
+- **Agendamento Automático:** Integração validada com Service Accounts da Google Calendar API (`calendarService`).
+
+### ✅ Concluído (Fase 2: Banco de Dados Real e Autenticação)
+- **Banco de Dados Relacional:** Substituímos o Mock por um servidor **PostgreSQL 15** rodando via Docker (`docker-compose.yml`).
+- **Modelagem ORM:** Implementação do **Prisma ORM** v5 para facilitar as *Migrations* e modelos. Criado o modelo base de `Usuario` (`CLIENTE` e `PRESTADOR`).
+- **API RESTful:** Servidor **Express.js** inicializado na pasta `/api` para atender o futuro Front-End.
+- **Segurança (Auth):** Rotas de Registro e Login implementadas com senha forte encriptada via **Bcryptjs** e sessão autenticada usando Tokens **JWT**.
+
+### 🔜 Próximos Passos (O que falta construir)
+- [ ] **Front-End Administrativo (Web):** Desenvolver um painel em React/Vue para que o Prestador faça login (usando nossa rota JWT), edite seu perfil e autorize seu próprio Google Calendar via OAuth2.
+- [ ] **Integração Bot-API:** Fazer o bot do Telegram parar de usar o `servicosMock.js` e passar a consumir as rotas da nossa nova `api/` para buscar os profissionais em tempo real no PostgreSQL.
+- [ ] **Serviço de Geolocalização:** Integrar APIs de mapas (Google/Mapbox) para calcular a distância entre o cliente (do Bot) e os prestadores (do Banco).
+- [ ] **Módulo de Matching (`matchService.js`):** O "Cérebro" que cruza `PostgreSQL (Serviços)` + `Geolocation (Local)` + `Calendar API (Free/Busy)`.

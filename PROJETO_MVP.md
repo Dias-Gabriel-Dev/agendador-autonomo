@@ -55,6 +55,6 @@ Até o momento, evoluímos a Prova de Conceito (PoC) simples do bot e já começ
 
 ### 🔜 Próximos Passos (O que falta construir)
 - [ ] **Front-End Administrativo (Web):** Desenvolver um painel em React/Vue para que o Prestador faça login (usando nossa rota JWT), edite seu perfil e autorize seu próprio Google Calendar via OAuth2.
-- [ ] **Integração Bot-API:** Fazer o bot do Telegram parar de usar o `servicosMock.js` e passar a consumir as rotas da nossa nova `api/` para buscar os profissionais em tempo real no PostgreSQL.
+- [ ] **Integração Bot-API:** Fazer o bot do Telegram identificar as categorias de acordo com a mensagem do usuário para buscar os profissionais em tempo real no PostgreSQL.
 - [ ] **Serviço de Geolocalização:** Integrar APIs de mapas (Google/Mapbox) para calcular a distância entre o cliente (do Bot) e os prestadores (do Banco).
 - [ ] **Módulo de Matching (`matchService.js`):** O "Cérebro" que cruza `PostgreSQL (Serviços)` + `Geolocation (Local)` + `Calendar API (Free/Busy)`.

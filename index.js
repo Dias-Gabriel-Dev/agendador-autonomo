@@ -1,40 +1,32 @@
-require("dotenv").config();
+import 'dotenv/config';
+import { Telegraf } from 'telegraf';
+import axios from 'axios';
 
-const { Telegraf } = require("telegraf");
+// Importação dos serviços e utilitários
+import { extrairDadosDeAgendamento, classificarServico } from './src/services/aiService.js';
+import { inserirEventoTeste } from './src/services/calendarService.js';
+import { extrairEFormatarData, extrairHorario, calcularHoraFim } from './src/utils/dateUtils.js';
 
-// -------------------------------------------------------------
-// ARQUITETURA MODULAR (CLEAN CODE)
-// -------------------------------------------------------------
-// Aqui o index.js delega tarefas. Importamos tudo que precisamos:
-const { extrairDadosDeAgendamento, classificarServico } = require('./src/services/aiService');
-const { inserirEventoTeste } = require('./src/services/calendarService');
-const { extrairEFormatarData, extrairHorario, calcularHoraFim } = require('./src/utils/dateUtils');
-const { servicosDisponiveis } = require('./src/data/servicosMock');
-
-// O index.js cuida apenas de ligar e controlar o Telegram
+// Inicialização do bot do Telegram
 const bot = new Telegraf(process.env.TELEGRAM_TOKEN);
 
-// -------------------------------------------------------------
-// MÁQUINA DE ESTADOS (STATE MACHINE) DO BOT
-// -------------------------------------------------------------
-// O bot precisa saber em qual "passo" o usuário está conversando.
-// Criamos um objeto complexo em vez de apenas "true" ou "false".
+// Controle de sessão e máquina de estados na memória (usuário -> dados)
 const sessoesAtivas = {};
 
 bot.on("text", async (ctx) => {
   const usuarioId = ctx.from.id;
   const textoRecebido = ctx.message.text;
 
-  // Se for a primeira vez do usuário, ou se ele forçar o /start (querendo reiniciar tudo)
+  // Inicia o fluxo caso seja nova conversa ou reset manual
   if (!sessoesAtivas[usuarioId] || textoRecebido === '/start') {
-    // Inicializa a MÁQUINA DE ESTADOS para esse cliente
     sessoesAtivas[usuarioId] = {
-      passoAtual: 'PERGUNTAR_NOME', // Ele começa no passo 1
+      passoAtual: 'PERGUNTAR_NOME',
       dadosColetados: {
         nome: null,
         telefone: null,
+        endereco: null,
         servico: null,
-        opcoesDeServico: [] // Guarda as opções em caso de ambiguidade
+        opcoesDeServico: []
       }
     };
     
@@ -44,41 +36,41 @@ bot.on("text", async (ctx) => {
     );
   }
 
-  // Pega a sessão do usuário que já começou a conversar
   const sessaoDoUsuario = sessoesAtivas[usuarioId];
 
-  // SWITCH/CASE: O "Cérebro" que decide o que fazer baseado no passo atual
+  // Máquina de Estados: Direciona a execução com base no passo em que o usuário está
   switch (sessaoDoUsuario.passoAtual) {
 
-    // ----------------------------------------------------
     case 'PERGUNTAR_NOME':
-      // A mensagem que ele digitou AGORA é o nome dele!
       sessaoDoUsuario.dadosColetados.nome = textoRecebido;
-      
-      // Muda de estado (avança de nível)
       sessaoDoUsuario.passoAtual = 'PERGUNTAR_TELEFONE';
-      
       return ctx.reply(`Prazer, ${sessaoDoUsuario.dadosColetados.nome}! Qual é o seu telefone para contato (com DDD)?`);
 
-    // ----------------------------------------------------
     case 'PERGUNTAR_TELEFONE':
-      // A mensagem que ele digitou AGORA é o telefone!
       sessaoDoUsuario.dadosColetados.telefone = textoRecebido;
-      
-      // Muda de estado (agora vai pro passo de escolher o serviço)
-      sessaoDoUsuario.passoAtual = 'PERGUNTAR_SERVICO';
-      
-      // Cria uma string bonita com todos os serviços em tópicos (ex: "- Manutenção\n- Limpeza")
-      const listaServicos = servicosDisponiveis.map(s => `- ${s}`).join("\n");
-      
-      return ctx.reply(`Tudo anotado! ✅\nQual tipo de serviço você busca? Temos estas opções:\n\n${listaServicos}\n\nDigite o nome de um deles:`);
+      sessaoDoUsuario.passoAtual = 'PERGUNTAR_ENDERECO';
+      return ctx.reply(`Tudo anotado! ✅\nPara localizarmos o profissional ideal, em qual cidade e bairro você está localizado?`);
 
-    // ----------------------------------------------------
-    case 'PERGUNTAR_SERVICO':
-      ctx.reply("Estou verificando nossos serviços...");
+    case 'PERGUNTAR_ENDERECO':
+      sessaoDoUsuario.dadosColetados.endereco = textoRecebido;
+      sessaoDoUsuario.passoAtual = 'PERGUNTAR_PROBLEMA';
+      return ctx.reply(`Certo! Pode me descrever qual o seu problema ou o tipo de serviço que você precisa hoje?`);
+
+    case 'PERGUNTAR_PROBLEMA':
+      ctx.reply("Estou buscando profissionais perto de você...");
       try {
-        // Usamos o Gemini para "adivinhar" o que ele quer, independente de erros de digitação!
-        const respostaSemantica = await classificarServico(textoRecebido, servicosDisponiveis);
+        // 1. Busca os serviços dinâmicos no Backend (PostgreSQL) usando a cidade informada!
+        const cidadeQuery = encodeURIComponent(sessaoDoUsuario.dadosColetados.endereco);
+        const apiResposta = await axios.get(`http://localhost:3000/api/providers/search?cidade=${cidadeQuery}`);
+        
+        const servicosDaRegiao = apiResposta.data.servicosDisponiveisAqui;
+
+        if (!servicosDaRegiao || servicosDaRegiao.length === 0) {
+          return ctx.reply("Puxa, infelizmente não encontrei profissionais disponíveis na sua região no momento. Tente novamente mais tarde.");
+        }
+
+        // 2. Com a lista dinâmica em mãos, pedimos para a Inteligência Artificial achar o match!
+        const respostaSemantica = await classificarServico(textoRecebido, servicosDaRegiao);
         const jsonServicoLimpo = respostaSemantica.replace(/```json/g, '').replace(/```/g, '').trim();
         const busca = JSON.parse(jsonServicoLimpo);
 
@@ -89,13 +81,12 @@ bot.on("text", async (ctx) => {
         }
 
         if (encontrados.length === 1) {
-          // Bingo! A IA achou exatamente UM serviço.
           sessaoDoUsuario.dadosColetados.servico = encontrados[0];
           sessaoDoUsuario.passoAtual = 'AGENDAMENTO_VIA_IA';
           return ctx.reply(`Entendido: ${encontrados[0]}.\nAgora me diga, para qual dia e período você gostaria de agendar?`);
         }
 
-        // Se encontrou MAIS DE UM (ambiguidade), nós pedimos para ele escolher por NÚMERO
+        // Se houver ambiguidade, exibe uma lista numerada
         if (encontrados.length > 1) {
           sessaoDoUsuario.dadosColetados.opcoesDeServico = encontrados;
           sessaoDoUsuario.passoAtual = 'ESCOLHER_SERVICO_NUMERO';
@@ -104,7 +95,6 @@ bot.on("text", async (ctx) => {
           encontrados.forEach((servico, index) => {
             menuNumerado += `${index + 1} - ${servico}\n`;
           });
-
           return ctx.reply(menuNumerado);
         }
 
@@ -114,32 +104,24 @@ bot.on("text", async (ctx) => {
       }
       break;
 
-    // ----------------------------------------------------
     case 'ESCOLHER_SERVICO_NUMERO':
-      // Aqui ele deve ter digitado um número, ex: "1" ou "2"
       const numeroEscolhido = parseInt(textoRecebido);
       const opcoesRestantes = sessaoDoUsuario.dadosColetados.opcoesDeServico;
 
-      // Verifica se o que ele digitou é um número válido (1, 2, 3...)
       if (isNaN(numeroEscolhido) || numeroEscolhido < 1 || numeroEscolhido > opcoesRestantes.length) {
         return ctx.reply("Número inválido. Por favor, digite apenas o número de uma das opções mostradas acima.");
       }
 
-      // Arrays em JS começam no índice 0. Se ele digitou 1, o índice é 0.
-      const indiceReal = numeroEscolhido - 1;
-      const servicoFinalEscolhido = opcoesRestantes[indiceReal];
-
+      const servicoFinalEscolhido = opcoesRestantes[numeroEscolhido - 1];
       sessaoDoUsuario.dadosColetados.servico = servicoFinalEscolhido;
       sessaoDoUsuario.passoAtual = 'AGENDAMENTO_VIA_IA';
-
       return ctx.reply(`Entendido: ${servicoFinalEscolhido}.\nAgora me diga, para qual dia e período você gostaria de agendar?`);
 
-    // ----------------------------------------------------
     case 'AGENDAMENTO_VIA_IA':
-      // O usuário chegou no chefe final. Aqui nós chamamos o serviço de Inteligência Artificial!
       ctx.reply("Entendi! Deixa eu verificar a minha agenda...");
 
       try {
+        // Extração de agendamento usando Gemini (NLP para dia e hora)
         const respostaDaIA = await extrairDadosDeAgendamento(textoRecebido);
         const jsonLimpo = respostaDaIA.replace(/```json/g, '').replace(/```/g, '').trim();
         const dados = JSON.parse(jsonLimpo);
@@ -147,18 +129,14 @@ bot.on("text", async (ctx) => {
         const dataFormatada = extrairEFormatarData(dados.dia);
         const horaInicioFormatada = extrairHorario(dados.turno);
 
-        // Se faltar algum dado, a gente barra e ele TENTA DE NOVO (o estado continua em AGENDAMENTO_VIA_IA)
-        if (!dataFormatada) {
-          return ctx.reply("Desculpe, não consegui entender o *dia* que você quer. Pode repetir de outra forma?");
-        }
-        if (!horaInicioFormatada) {
-          return ctx.reply(`Entendi que você quer agendar para ${dados.dia} no período da ${dados.turno || 'manhã/tarde'}. Qual horário exatamente você prefere?`);
-        }
+        // Barras de checagem contra abstrações que não incluíram dia ou hora clara
+        if (!dataFormatada) return ctx.reply("Desculpe, não consegui entender o *dia* que você quer. Pode repetir de outra forma?");
+        if (!horaInicioFormatada) return ctx.reply(`Entendi que você quer agendar para ${dados.dia} no período da ${dados.turno || 'manhã/tarde'}. Qual horário exatamente você prefere?`);
 
         const horaFimFormatada = calcularHoraFim(horaInicioFormatada);
         ctx.reply(`Perfeito! Vou agendar para ${dados.dia} das ${horaInicioFormatada} até às ${horaFimFormatada}...`);
 
-        // INSERE O EVENTO NO CALENDAR (agora com data, hora, nome, telefone e o servico)
+        // Insere o evento processado no Google Agenda
         const eventoCriado = await inserirEventoTeste(
           dataFormatada, 
           horaInicioFormatada, 
@@ -169,8 +147,8 @@ bot.on("text", async (ctx) => {
         );
 
         ctx.reply(`✅ Agendamento Confirmado no Google Agenda!\nAqui está o link: ${eventoCriado.htmlLink}`);
-
-        // DELETA a sessão da memória do servidor para o cara poder agendar outra coisa do zero no futuro
+        
+        // Finaliza o atendimento e limpa a sessão
         delete sessoesAtivas[usuarioId];
 
       } catch (erro) {
@@ -179,7 +157,6 @@ bot.on("text", async (ctx) => {
       }
       break;
 
-    // Se o switch quebrar ou perder o estado (erro de lógica)
     default:
       ctx.reply("Oops, me perdi! Vamos recomeçar? (Digite /start)");
       delete sessoesAtivas[usuarioId];
@@ -187,11 +164,7 @@ bot.on("text", async (ctx) => {
   }
 });
 
-// Inicia o bot e exibe uma mensagem no terminal assim que ele estiver escutando
-bot.launch(() => {
-  console.log("Bot rodando! Vá para o Telegram e mande um /start");
-});
-
-// Configurações para um encerramento seguro (gracioso) do bot ao parar o processo (ex: Ctrl+C)
+// Tratativas de inicialização e encerramento limpo do node (Graceful shutdown)
+bot.launch(() => console.log("Bot rodando! Vá para o Telegram e mande um /start"));
 process.once("SIGINT", () => bot.stop("SIGINT"));
 process.once("SIGTERM", () => bot.stop("SIGTERM"));

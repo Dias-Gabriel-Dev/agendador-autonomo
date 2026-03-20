@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "cline-community": {
+      "env": {
+        "CLINE_API_PROVIDER": "openai",
+        "CLINE_MODEL": "gpt-4o-mini",
+        "GH_TOKEN": "TEST_TOKEN"
+      }
+    }
+  }
+}

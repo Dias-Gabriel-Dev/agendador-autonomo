@@ -1,24 +1,15 @@
-/**
- * services/aiService.js
- * 
- * Este serviço é responsável SOMENTE por falar com o Modelo de Inteligência Artificial.
- * Se amanhã trocarmos do Gemini para o ChatGPT, você só mexe neste arquivo!
- */
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
-const { GoogleGenerativeAI } = require("@google/generative-ai");
-
-// Inicializa a IA usando a chave que está no .env
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 /**
- * Função responsável por enviar a mensagem para a IA e extrair os dados de agendamento em JSON.
- * @param {string} mensagemDoCliente O texto cru enviado pelo cliente no Telegram
- * @returns {string} String no formato JSON com as chaves "dia" e "turno"
+ * Extrai dados de agendamento em JSON via Gemini.
+ * @param {string} mensagemDoCliente O texto enviado pelo cliente no Telegram
+ * @returns {string} JSON contendo as chaves "dia" e "turno"
  */
 async function extrairDadosDeAgendamento(mensagemDoCliente) {
   const modelo = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
-  // Captura a data atual formatada (ajuste o timezone se necessário)
   const dataAtual = new Date().toLocaleString("pt-BR", {
     timeZone: "America/Sao_Paulo",
   });
@@ -34,16 +25,15 @@ async function extrairDadosDeAgendamento(mensagemDoCliente) {
   - "turno" (período do dia, ex: "manhã", "tarde" ou "noite", seguido do horário exato se o cliente solicitar. Ex: "manhã", "tarde, 15:00", "noite, 20:00")
   Se não encontrar a informação na frase, use null. Não escreva mais nada além do JSON.`;
 
-  // Envia a instrução para a IA e retorna apenas o texto da resposta
   const resultado = await modelo.generateContent(instrucao);
   return resultado.response.text();
 }
 
 /**
- * Função responsável por classificar e fazer "busca semântica" do serviço que o cliente quer.
- * @param {string} textoDoCliente O que o cliente digitou ("eletrica", "pedrero", "fazer uma parede")
- * @param {Array<string>} listaDeServicos O nosso "banco de dados" de serviços disponíveis
- * @returns {string} String no formato JSON com um Array de "servicosEncontrados" que combinam
+ * Classifica a intenção do serviço usando busca semântica no Gemini.
+ * @param {string} textoDoCliente Texto do cliente
+ * @param {Array<string>} listaDeServicos Lista base de serviços para correlacionar
+ * @returns {string} JSON contendo "servicosEncontrados" (Array)
  */
 async function classificarServico(textoDoCliente, listaDeServicos) {
   const modelo = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
@@ -70,8 +60,7 @@ async function classificarServico(textoDoCliente, listaDeServicos) {
   return resultado.response.text();
 }
 
-// Exportamos as funções principais do serviço de IA
-module.exports = {
+export {
   extrairDadosDeAgendamento,
   classificarServico
 };

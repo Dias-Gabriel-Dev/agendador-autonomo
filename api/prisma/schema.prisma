@@ -7,18 +7,62 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Modelagem do Usuário (Cliente ou Prestador)
+// 1. Tabela Base: Autenticação Universal (Todos logam por aqui)
 model Usuario {
   id         String      @id @default(uuid())
-  nome       String
   email      String      @unique
   senha      String      // A senha salva aqui será Criptografada via Bcrypt!
-  telefone   String?
   tipo       TipoUsuario @default(CLIENTE)
   criadoEm   DateTime    @default(now())
+  atualizadoEm DateTime  @updatedAt
+
+  // Relacionamentos 1-para-1 (Um usuário pode ter apenas um perfil ativo)
+  // O "?" significa opcional, pois ele não pode ter ambos ao mesmo tempo
+  perfilCliente   PerfilCliente?
+  perfilPrestador PerfilPrestador?
 }
 
 enum TipoUsuario {
   CLIENTE
   PRESTADOR
+}
+
+// 2. Tabela Filha A: O Cliente Comum que vai marcar serviços
+model PerfilCliente {
+  id         String   @id @default(uuid())
+  nome       String
+  telefone   String?  // Opcional, pode adicionar depois
+  
+  // Endereço do Cliente (Opcional, pois ele pode querer serviço no vizinho)
+  cep        String?
+  estado     String?  // Ex: SP, RJ
+  cidade     String?
+  bairro     String?
+  rua        String?
+  
+  // A "chave" que liga este Perfil ao Login Base dele
+  usuarioId  String   @unique
+  usuario    Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+}
+
+// 3. Tabela Filha B: O Autônomo que oferece serviços (Encanador, Eletricista)
+model PerfilPrestador {
+  id                  String   @id @default(uuid())
+  nomeFantasia        String   // Ex: "João Encanador"
+  telefoneContato     String
+  
+  // Campos de Negócio do MVP (Array de Strings para simplificar agora)
+  servicosOferecidos  String[] // Ex: ["Serralheria", "Pedreiro"]
+  raioDeAtuacaoKm     Int      @default(10) // Quantos KM a partir do seu endereço ele atende
+  
+  // Endereço Base do Profissional (Obrigatório para aparecer nas buscas de Match!)
+  cep        String?
+  estado     String
+  cidade     String
+  bairro     String
+  rua        String?
+  
+  // A "chave" que liga este Perfil ao Login Base dele
+  usuarioId           String   @unique
+  usuario             Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
 }

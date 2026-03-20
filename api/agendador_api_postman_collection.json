@@ -39,7 +39,7 @@
 				],
 				"body": {
 					"mode": "raw",
-					"raw": "{\r\n  \"nome\": \"João Encanador\",\r\n  \"email\": \"joao@test.com\",\r\n  \"senha\": \"minhasenha123\",\r\n  \"telefone\": \"11988887777\",\r\n  \"tipo\": \"PRESTADOR\"\r\n}"
+					"raw": "{\r\n  \"email\": \"joao@test.com\",\r\n  \"senha\": \"minhasenha123\",\r\n  \"tipo\": \"PRESTADOR\",\r\n  \"perfilDados\": {\r\n    \"nomeFantasia\": \"João Encanador Bom de Cano\",\r\n    \"telefoneContato\": \"11988887777\",\r\n    \"servicosOferecidos\": [\"Encanador\", \"Desentupimento\"],\r\n    \"raioDeAtuacaoKm\": 15\r\n  }\r\n}"
 				},
 				"url": {
 					"raw": "http://localhost:3000/api/auth/register",
@@ -70,7 +70,7 @@
 				],
 				"body": {
 					"mode": "raw",
-					"raw": "{\r\n  \"nome\": \"Maria Cliente\",\r\n  \"email\": \"maria@test.com\",\r\n  \"senha\": \"senha1234\",\r\n  \"tipo\": \"CLIENTE\"\r\n}"
+					"raw": "{\r\n  \"email\": \"maria@test.com\",\r\n  \"senha\": \"senha1234\",\r\n  \"tipo\": \"CLIENTE\",\r\n  \"perfilDados\": {\r\n    \"nome\": \"Maria Silva\",\r\n    \"telefone\": \"11955554444\",\r\n    \"endereco\": \"Vila Mariana, SP\"\r\n  }\r\n}"
 				},
 				"url": {
 					"raw": "http://localhost:3000/api/auth/register",

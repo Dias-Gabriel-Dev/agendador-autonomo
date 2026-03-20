@@ -3,4 +3,4 @@ build/
 *.log
 .env*
 cline_mcp_settings.json
-/mcp-servers/cline-community/.vscode/
+mcp-servers/

@@ -50,6 +50,7 @@ model PerfilPrestador {
   id                  String   @id @default(uuid())
   nomeFantasia        String   // Ex: "João Encanador"
   telefoneContato     String
+  googleCalendarId    String?  // Para integração futura com Google Calendar
   
   // Campos de Negócio do MVP (Array de Strings para simplificar agora)
   servicosOferecidos  String[] // Ex: ["Serralheria", "Pedreiro"]

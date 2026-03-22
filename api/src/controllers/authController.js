@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { PrismaClient } from '@prisma/client';
+import { google } from 'googleapis';
 
 const prisma = new PrismaClient();
 
@@ -24,6 +25,7 @@ async function register(req, res) {
         create: {
           nomeFantasia: perfilDados.nomeFantasia,
           telefoneContato: perfilDados.telefoneContato,
+          googleCalendarId: perfilDados.googleCalendarId || null,
           servicosOferecidos: perfilDados.servicosOferecidos || [],
           raioDeAtuacaoKm: perfilDados.raioDeAtuacaoKm || 10,
           estado: perfilDados.estado || 'SP',

@@ -15,7 +15,15 @@ async function searchProviders(req, res) {
 
     const prestadores = await prisma.perfilPrestador.findMany({
       where: filtros,
-      select: { id: true, nomeFantasia: true, servicosOferecidos: true, cidade: true, bairro: true }
+      select: { 
+        id: true,
+        nomeFantasia: true,
+        googleCalendarId: true,
+        telefoneContato: true,
+        servicosOferecidos: true,
+        cidade: true,
+        bairro: true
+      }
     });
 
     let todosOsServicos = new Set();

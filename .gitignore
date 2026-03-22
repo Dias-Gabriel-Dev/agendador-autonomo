@@ -9,8 +9,12 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+mcp-servers/cline-community/.vscode/
 
 # Credenciais e chaves do Google Cloud
 *-gcp.json
 *credentials*.json
 *key*.json
+
+# Ferramentas locais de desenvolvimento (VS Code / AI Tools)
+mcp-servers/

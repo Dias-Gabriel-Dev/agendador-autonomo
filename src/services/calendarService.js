@@ -3,21 +3,30 @@ import 'dotenv/config';
 
 const SCOPES = ['https://www.googleapis.com/auth/calendar'];
 const keyFilePath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
-const calendarId = process.env.GOOGLE_CALENDAR_ID;
 
 const auth = new google.auth.GoogleAuth({ keyFile: keyFilePath, scopes: SCOPES });
 const calendar = google.calendar({ version: 'v3', auth });
 
 /**
- * Cria um evento agendado no Google Calendar utilizando as credenciais da Service Account.
+ * Cria um evento agendado no Google Calendar do prestador escolhido.
  */
-async function inserirEventoTeste(dia, horaInicio, horaFim, nomeCliente = 'Cliente', telefoneCliente = 'N/A', servicoNome = 'Serviço Geral') {
+async function inserirEventoTeste(
+  dia, 
+  horaInicio, 
+  horaFim, 
+  nomeCliente = 'Cliente', 
+  telefoneCliente = 'N/A', 
+  servicoNome = 'Serviço Geral',
+  calendarId // ID dinâmico vindo da requisição (do banco de dados!)
+) {
   try {
-    if (!keyFilePath || !calendarId) {
-      throw new Error('Credenciais GOOGLE_APPLICATION_CREDENTIALS ou GOOGLE_CALENDAR_ID ausentes no .env');
+    const calendarFinal = calendarId || process.env.GOOGLE_CALENDAR_ID;
+    
+    if (!keyFilePath || !calendarFinal) {
+      throw new Error('Credenciais GOOGLE_APPLICATION_CREDENTIALS ausentes ou CalendarID inválido.');
     }
 
-    console.log(`Agendando ${servicoNome} para ${nomeCliente} no Google Calendar...`);
+    console.log(`Agendando ${servicoNome} para ${nomeCliente} no calendário: ${calendarFinal}...`);
     
     // Converte e normaliza as datas para o padrão ISO-8601 c/ fuso de SP
     const startDateTime = `${dia}T${horaInicio}-03:00`;
@@ -39,7 +48,7 @@ async function inserirEventoTeste(dia, horaInicio, horaFim, nomeCliente = 'Clien
     console.log(`Inserindo evento para ${startDateTime}...`);
 
     const response = await calendar.events.insert({
-      calendarId: calendarId,
+      calendarId: calendarFinal, // Usa o Calendar do prestador (ou fallback)
       resource: evento,
     });
 

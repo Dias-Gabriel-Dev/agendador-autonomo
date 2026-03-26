@@ -66,17 +66,24 @@ export async function handleUserMessage(ctx) {
         const servicosDaRegiao = apiResposta.data.servicosDisponiveisAqui;
 
         if (!servicosDaRegiao || servicosDaRegiao.length === 0) {
-          return ctx.reply("Puxa, infelizmente não encontrei profissionais disponíveis na sua região no momento. Tente novamente mais tarde.");
+          ctx.reply(
+            "Desculpe, mas não encontrei nenhum profissional disponível na sua região no momento.\nEstamos sempre atualizando nossa base, então tente novamente mais tarde!"
+          );
+          delete sessoesAtivas[usuarioId];
+          return;
         }
 
-        // Pede ao LLM (Gemini) para interpretar o serviço baseado na lista filtrada
+        // Pede ao LLM (Gemini) para interpretar o serviço baseado na lista filtrada (Ex: "pia entupiu" -> "Encanador")
         const respostaSemantica = await classificarServico(textoRecebido, servicosDaRegiao);
         const jsonServicoLimpo = respostaSemantica.replace(/```json/g, '').replace(/```/g, '').trim();
         const busca = JSON.parse(jsonServicoLimpo);
         const encontrados = busca.servicosEncontrados || [];
 
+        // Se o Gemini não conseguiu encaixar o pedido do cliente em NENHUM dos serviços daquela região
         if (encontrados.length === 0) {
-          return ctx.reply("Desculpe, não oferecemos esse serviço. Por favor, digite outro ou tente ser mais específico.");
+          ctx.reply("Desculpe, mas no momento não temos quem forneça o serviço solicitado na sua região. Tente explicar de outra forma!");
+          delete sessoesAtivas[usuarioId];
+          return;
         }
 
         if (encontrados.length === 1) {

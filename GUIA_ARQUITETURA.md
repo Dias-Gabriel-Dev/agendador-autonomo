@@ -1,30 +1,32 @@
 # 🗺️ Guia de Arquitetura do Agendador Autônomo
 
-Este documento detalha o papel de cada pasta e arquivo em nosso Monorepo (duas aplicações no mesmo repositório).
+Este projeto utiliza uma arquitetura baseada em **Camadas (Layered Architecture)** para separar responsabilidades e facilitar o aprendizado e manutenção.
 
-## 🤖 Bloco 1: O Robô do Telegram (Raiz)
-Tudo que está na pasta raiz e na pasta `/src` faz parte do aplicativo que conversa com o cliente.
+## 🤖 Bloco 1: O Robô do Telegram (Raiz e `/src`)
+Focado na interação direta com o cliente final.
 
-*   `index.js` -> Ponto de entrada (Entry Point). Apenas liga a biblioteca `telegraf` e repassa as mensagens para o Handler. Nunca coloque regra de negócio aqui.
-*   `src/handlers/` -> O cérebro do fluxo de conversa.
-    *   `conversationHandler.js`: Controla a "Máquina de Estados" (State Machine). Lembra o que o cliente digitou e decide o que responder em seguida (Switch/Case).
-*   `src/services/` -> Os "Especialistas" em integrações externas.
-    *   `aiService.js`: Sabe montar prompts e falar com a API do Google Gemini.
-    *   `calendarService.js`: Sabe montar payloads e falar com a API do Google Calendar.
-*   `src/utils/` -> Ferramentas matemáticas e conversões genéricas de strings/datas (não dependem de integrações).
-*   `scripts/` -> Scripts isolados para manutenção (como `limparAgenda.js`) rodados manualmente via terminal.
+*   `index.js`: **Entry Point**. Apenas inicializa a biblioteca Telegraf e liga o servidor de mensagens.
+*   `src/handlers/conversationHandler.js`: **State Machine**. Controla em que passo da conversa o usuário está e o que ele deve responder. Cada etapa (Nome, Telefone, IA) é uma função isolada.
+*   `src/services/aiService.js`: **IA Engine**. Responsável exclusivamente por formatar prompts e falar com o Google Gemini.
+*   `src/services/calendarService.js`: **Google Engine**. Responsável por se autenticar e inserir eventos no Google Calendar API.
+*   `src/utils/dateUtils.js`: **Formatadores**. Funções puras de transformação de strings de data e hora.
 
 ---
 
 ## 🌐 Bloco 2: A API Backend (Pasta `/api`)
-Tudo que está na pasta `/api` roda em uma porta separada (3000) e serve os dados do Banco de Dados PostgreSQL.
+Focado na gestão de profissionais e dados estruturados no banco de dados.
 
-*   `api/server.js` -> Ponto de entrada do Express. Inicia o servidor e atrela os mapeamentos de URL.
-*   `api/prisma/schema.prisma` -> O "Desenhista" do Banco. É aqui que criamos as tabelas `Usuario`, `PerfilPrestador`, etc. O Prisma transforma isso em SQL.
-*   `api/src/routes/` -> Os "Garçons". Recebem o pedido HTTP e repassam pro controlador.
-    *   `authRoutes.js`: Define as rotas POST `/register` e `/login`.
-    *   `providersRoutes.js`: Define a rota GET `/search`.
-*   `api/src/controllers/` -> Os "Gerentes". Fazem as validações de regra de negócio, criptografia e buscam no banco de dados com Prisma.
-    *   `authController.js`: Cuida de criptografia (Bcrypt) e Tokens (JWT) ao criar e logar usuários.
-    *   `providersController.js`: Lógica de busca e *Matchmaking* no banco de dados (ex: achar prestadores por cidade).
-*   `api/agendador_api_postman_collection.json` -> O arquivo de teste com chamadas HTTP prontas (Health Check, Register, Login) para usar no Postman e popular a base sem precisar de um site (Front-end) pronto.
+*   `api/server.js`: **Express Entry Point**. Liga o servidor HTTP na porta 3000.
+*   `api/prisma/schema.prisma`: **Database Model**. Define como o PostgreSQL é estruturado (Tabelas: Usuario, PerfilPrestador, PerfilCliente).
+*   `api/src/routes/`: **Roteamento**. Define as URLs (`/auth/register`, `/providers/search`).
+*   `api/src/controllers/`: **Controllers**. Onde mora a lógica de banco de dados:
+    *   `authController.js`: Cria usuários e perfis relacionais com senhas criptografadas (Bcrypt) e gera Tokens JWT.
+    *   `providersController.js`: Faz a busca dinâmica de profissionais e serviços por cidade/região.
+*   `api/prisma/seed.js`: **Script de População**. Usado para injetar prestadores de teste (Osasco) no banco de dados.
+
+---
+
+## 🛠️ Como dar manutenção (Tech-Lead Tips)
+1.  **Mudança de Fluxo:** Se quiser adicionar uma pergunta nova (ex: CPF), você adiciona uma função em `conversationHandler.js`.
+2.  **Mudança no Banco:** Se quiser novos campos de endereço, você edita o `schema.prisma` e roda `npx prisma db push`.
+3.  **Melhoria na IA:** Se o bot não estiver entendendo bem os serviços, ajuste o `aiService.js`.

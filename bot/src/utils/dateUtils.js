@@ -28,7 +28,7 @@ function extrairHorario(turnoString) {
 }
 
 /**
- * Calcula hora final assumindo uma (1) hora fixa de duração de serviço
+ * Calcula hora final assumindo uma (1) hora fixa de duração de serviço ou visita.
  */
 function calcularHoraFim(horaInicio) {
   if (!horaInicio) return null;

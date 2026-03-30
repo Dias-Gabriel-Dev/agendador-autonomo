@@ -1,6 +1,11 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { Telegraf } from 'telegraf';
 import { handleUserMessage } from './src/handlers/conversationHandler.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.join(__dirname, '.env') });
 
 // Inicialização do bot (Ponto de Entrada da Aplicação Telegram)
 const bot = new Telegraf(process.env.TELEGRAM_TOKEN);

@@ -1,5 +1,11 @@
 import { google } from 'googleapis';
-import 'dotenv/config';
+import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+// Garante que as credenciais do .env do Bot sejam carregadas
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.join(__dirname, '../../.env') });
 
 const SCOPES = ['https://www.googleapis.com/auth/calendar'];
 const keyFilePath = process.env.GOOGLE_APPLICATION_CREDENTIALS;

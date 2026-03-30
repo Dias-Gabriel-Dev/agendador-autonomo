@@ -1,4 +1,11 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+// Garante que as credenciais do .env do Bot sejam carregadas
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.join(__dirname, '../../.env') });
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
@@ -60,7 +67,32 @@ async function classificarServico(textoDoCliente, listaDeServicos) {
   return resultado.response.text();
 }
 
+/**Extrai cidade e bairro de uma frase do usuário usando IA
+ * @param {string} textoDoCliente Texto do cliente(ex: "Osasco - Veloso" ou "nomeCidade NomeBairro")
+ * @return {string} JSON contendo "cidade" e "bairro"
+ */
+async function extrairEndereco(textoDoCliente) {
+  const modelo = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+
+  const instrucao = `
+  Vocé é um extratoir de endereços .
+  Leia a seguinte mensagem do usuário: "${textoDoCliente}"
+
+  Extratia a cidade e o bairro informados.
+  Se não encontrar a cidade, deixe como null.
+  Se não encontrar o bairro, deixe como null.
+
+  Responda APENAS com um objeto JSON válido contendo as chaves:
+  - "cidade" (string)
+  - "bairro" (string)
+  Não escreva mais nada além do JSON (nem aspas, nem markdown).`;
+
+  const resultado = await modelo.generateContent(instrucao);
+  return resultado.response.text();
+}
+
 export {
   extrairDadosDeAgendamento,
-  classificarServico
+  classificarServico,
+  extrairEndereco
 };

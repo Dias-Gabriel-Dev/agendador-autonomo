@@ -1,11 +1,12 @@
 import express from 'express';
-const router = express.Router();
+import { searchProviders, matchProviders } from '../controllers/providersController.js';
 
-import { searchProviders } from '../controllers/providersController.js';
+const router = express.Router();
 
 /**
  * Rotas expostas para o Marketplace de Serviços (/api/providers)
  */
 router.get('/search', searchProviders);
+router.post('/match', matchProviders);
 
 export default router;

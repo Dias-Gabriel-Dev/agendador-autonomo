@@ -43,18 +43,17 @@ O cliente escolhe, e o bot automaticamente insere o evento no Google Calendar do
 Até o momento, evoluímos a Prova de Conceito (PoC) simples do bot e já começamos a estruturar o Backend Oficial do MVP em um Monorepo:
 
 ### ✅ Concluído (Fase 1: Bot e Integrações)
-- **Bot Inteligente (Telegram):** Máquina de estados rodando com Node.js (Telegraf).
-- **Busca Semântica:** Integração com Google Gemini 2.5 Flash (`aiService`).
-- **Agendamento Automático:** Integração validada com Service Accounts da Google Calendar API (`calendarService`).
+- **Bot Inteligente Modular (Telegram):** Máquina de estados desacoplada (`conversationHandler`) operando em Node.js com módulos modernos (ESM).
+- **Busca Semântica Dinâmica:** O robô pede o endereço, busca profissionais na API, e o Gemini filtra semanticamente o serviço desejado, tratando ambiguidades com menus numerados.
+- **Agendamento Automático Baseado em Match:** Integração validada onde o bot descobre o Google Calendar ID específico do prestador e insere o evento.
 
 ### ✅ Concluído (Fase 2: Banco de Dados Real e Autenticação)
-- **Banco de Dados Relacional:** Substituímos o Mock por um servidor **PostgreSQL 15** rodando via Docker (`docker-compose.yml`).
-- **Modelagem ORM:** Implementação do **Prisma ORM** v5 para facilitar as *Migrations* e modelos. Criado o modelo base de `Usuario` (`CLIENTE` e `PRESTADOR`).
-- **API RESTful:** Servidor **Express.js** inicializado na pasta `/api` para atender o futuro Front-End.
-- **Segurança (Auth):** Rotas de Registro e Login implementadas com senha forte encriptada via **Bcryptjs** e sessão autenticada usando Tokens **JWT**.
+- **Banco de Dados Relacional:** Servidor **PostgreSQL 15** rodando localmente via Docker (`docker-compose.yml`).
+- **Modelagem ORM Avançada:** Implementação do **Prisma ORM** v5. Criada tabela unificada de `Usuario` ligada em 1-para-1 com as tabelas filhas `PerfilPrestador` e `PerfilCliente`.
+- **API RESTful e Injeção de Dados:** Servidor **Express.js** inicializado, com rota de busca de prestadores (`/api/providers/search`) e Seed Scripts rodando para injetar prestadores em Osasco-SP.
+- **Segurança (Auth):** Rotas de Registro e Login criadas com senha criptografada via **Bcryptjs** e emissão de Tokens **JWT**.
 
 ### 🔜 Próximos Passos (O que falta construir)
-- [ ] **Front-End Administrativo (Web):** Desenvolver um painel em React/Vue para que o Prestador faça login (usando nossa rota JWT), edite seu perfil e autorize seu próprio Google Calendar via OAuth2.
-- [ ] **Integração Bot-API:** Fazer o bot do Telegram identificar as categorias de acordo com a mensagem do usuário para buscar os profissionais em tempo real no PostgreSQL.
-- [ ] **Serviço de Geolocalização:** Integrar APIs de mapas (Google/Mapbox) para calcular a distância entre o cliente (do Bot) e os prestadores (do Banco).
-- [ ] **Módulo de Matching (`matchService.js`):** O "Cérebro" que cruza `PostgreSQL (Serviços)` + `Geolocation (Local)` + `Calendar API (Free/Busy)`.
+- [ ] **Front-End Administrativo (Web):** Desenvolver um painel em React/Vue para que o Prestador faça login (usando a nossa rota JWT), edite seu perfil e integre seu próprio Google Calendar via Consent Screen (OAuth2).
+- [ ] **Serviço de Geolocalização Real:** Evoluir a busca atual (feita por Strings de `Cidade/Bairro` via Axios e URLSearchParams) para utilizar uma API de mapas oficial (Google/Mapbox) calculando Distância KM (`Raio de Atuação`).
+- [ ] **Integração Completa (Free/Busy API):** Fazer a API consultar os horários livres na agenda do Google Calendar dos prestadores **antes** de enviá-los para a lista do bot, criando um verdadeiro cruzamento de agenda.

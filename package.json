@@ -1,20 +1,16 @@
 {
-  "name": "agendador-autonomo",
+  "name": "agendador-autonomo-monorepo",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "private": true,
+  "workspaces": [
+    "api",
+    "bot"
+  ],
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev:api": "npm run dev --workspace=api",
+    "dev:bot": "node bot/index.js",
+    "start": "npm run dev:api & npm run dev:bot"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "module",
-  "dependencies": {
-    "@google/generative-ai": "^0.24.1",
-    "axios": "^1.13.6",
-    "dotenv": "^17.3.1",
-    "googleapis": "^171.4.0",
-    "telegraf": "^4.16.3"
-  }
+  "author": "Gabriel e IA (Sênior)",
+  "license": "ISC"
 }

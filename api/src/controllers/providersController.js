@@ -1,12 +1,13 @@
 import { PrismaClient } from "@prisma/client";
-import { extrairEndereco } from "../../../bot/src/services/aiService.js";
+import { extrairEndereco } from "../services/aiServices.js";
+import { inserirEventoTeste } from "../services/calendarServices.js";
 
 const prisma = new PrismaClient();
 
 /**
  * Realiza query dinâmica de prestadores por região e agrupa seus serviços em um array (Set) de Strings não repetidas.
  */
-async function searchProviders(req, res) {
+async function searchProviders(req, res, next) {
   try {
     const { cidade, bairro } = req.query;
     let filtros = {};
@@ -40,14 +41,11 @@ async function searchProviders(req, res) {
       profissionais: prestadores,
     });
   } catch (erro) {
-    console.error("Erro na busca de provedores:", erro);
-    return res
-      .status(500)
-      .json({ erro: "Erro interno ao buscar prestadores." });
+    next(erro);
   }
 }
 
-async function matchProviders(req, res) {
+async function matchProviders(req, res, next) {
   try {
     // Corpo da requisição que o bot mandou via rota POST
     const { cliente, servicoBuscado, agendamento } = req.body;
@@ -106,14 +104,25 @@ async function matchProviders(req, res) {
 
     console.log(`Match feito com sucesso: ${profissionalIdeal.nomeFantasia}`);
 
+    const eventoData = await inserirEventoTeste(
+      agendamento.dia,
+      agendamento.horaInicio,
+      agendamento.horaFim,
+      cliente.nome,
+      cliente.telefone,
+      servicoBuscado,
+      profissionalIdeal.googleCalendarId,
+    );
+
     return res.status(200).json({
       profissionalSelecionado: profissionalIdeal.nomeFantasia,
       emailCalendario: profissionalIdeal.googleCalendarId || null,
       telefone: profissionalIdeal.telefoneContato,
+      linkEvento: eventoData.htmlLink,
     });
+
   } catch (erro) {
-    console.error("Erro no Matchmaking:", erro);
-    return res.status(500).json({ erro: "Falha na central de agendamentos." });
+    next(erro);
   }
 }
 

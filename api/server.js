@@ -1,6 +1,10 @@
+import dotenv from 'dotenv';
+dotenv.config({ path: '../.env' });
 import express from 'express';
 import cors from 'cors';
-import 'dotenv/config';
+import { globalErrorHandler } from './src/middlewares/errorHandler.js';
+
+
 
 const app = express();
 
@@ -16,6 +20,8 @@ app.use('/api/auth', authRoutes);
 
 import providerRoutes from './src/routes/providersRoutes.js';
 app.use('/api/providers', providerRoutes);
+
+app.use(globalErrorHandler);
 
 // Inicialização do servidor na porta disponível
 const PORT = process.env.PORT || 3000;

@@ -19,3 +19,5 @@ mcp-servers/cline-community/.vscode/
 # Ferramentas locais de desenvolvimento (VS Code / AI Tools)
 mcp-servers/
 .vscode/cline_mcp_settings.json
+.clinerules
+.vscode/

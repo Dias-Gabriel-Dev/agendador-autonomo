@@ -1,17 +1,8 @@
 import { google } from 'googleapis';
-import dotenv from 'dotenv';
-import path from 'path';
-import { fileURLToPath } from 'url';
-
-// Garante que as credenciais do .env do Bot sejam carregadas
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: path.join(__dirname, '../../.env') });
 
 const SCOPES = ['https://www.googleapis.com/auth/calendar'];
 const keyFilePath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
 
-const auth = new google.auth.GoogleAuth({ keyFile: keyFilePath, scopes: SCOPES });
-const calendar = google.calendar({ version: 'v3', auth });
 
 /**
  * Cria um evento agendado no Google Calendar do prestador escolhido.
@@ -24,7 +15,10 @@ async function inserirEventoTeste(
   telefoneCliente = 'N/A', 
   servicoNome = 'Serviço Geral',
   calendarId // ID dinâmico vindo da requisição (do banco de dados!)
-) {
+) 
+{ const auth = new google.auth.GoogleAuth({ keyFile: keyFilePath, scopes: SCOPES });
+  const calendar = google.calendar({ version: 'v3', auth });
+
   try {
     const calendarFinal = calendarId || process.env.GOOGLE_CALENDAR_ID;
     

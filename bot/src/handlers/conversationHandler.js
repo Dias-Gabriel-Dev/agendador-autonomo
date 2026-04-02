@@ -3,8 +3,7 @@ import {
   extrairDadosDeAgendamento,
   classificarServico,
   extrairEndereco,
-} from "../services/aiService.js";
-import { inserirEventoTeste } from "../services/calendarService.js";
+} from "../../api/src/services/aiServices.js";
 import {
   extrairEFormatarData,
   extrairHorario,

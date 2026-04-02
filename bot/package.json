@@ -12,9 +12,11 @@
   "type": "module",
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
+    "agendador-autonomo-monorepo": "file:..",
     "axios": "^1.13.6",
     "dotenv": "^17.3.1",
     "googleapis": "^171.4.0",
+    "nodemon": "^3.1.14",
     "telegraf": "^4.16.3"
   }
 }

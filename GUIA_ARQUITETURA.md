@@ -1,612 +1,97 @@
-# 🗺️ Guia de Arquitetura — Agendador Autônomo
+# Guia de Arquitetura — Agendador Autônomo
 
-**Status Atual:** MVP Fase 2.5 | Última Atualização: Março 2026
-
----
-
-## 📋 Sumário
-
-1. [Quick Reference](#quick-reference) — O que cada pasta/arquivo faz
-2. [Fluxo Completo](#fluxo-completo) — Como os dados fluem pelo sistema
-3. [Bloco 1: Bot Telegram](#bloco-1-o-robô-do-telegram) — Interação com cliente
-4. [Bloco 2: API Backend](#bloco-2-a-api-backend) — Banco de dados e lógica
-5. [Fluxo de Dados Detalhado](#fluxo-de-dados-detalhado) — Passo a passo
-6. [Quick Maintenance](#quick-maintenance) — Soluções rápidas
-7. [Troubleshooting](#troubleshooting) — Problemas comuns
+**Status Atual:** Arquitetura Hexagonal (TypeScript API) & Legado Node.js (Telegraf Bot)  
+**Última Atualização:** Abril de 2026
 
 ---
 
-## ⚡ Quick Reference
+## 1. Visão Geral do Sistema
 
-### Bot (`/bot`)
-
-| Arquivo                    | Responsabilidade             | Funções Principais                                                                                                    |
-| -------------------------- | ---------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| **index.js**               | Inicia Telegraf e servidor   | `bot.launch()`, event listeners                                                                                       |
-| **conversationHandler.js** | State machine conversacional | `fluxoBoasVindas()`, `fluxoNome()`, `fluxoTelefone()`, `fluxoEndereco()`, `fluxoProblema()`, `fluxoAgendamentoData()` |
-| **aiService.js**           | Chamadas ao Gemini           | `extrairDadosDeAgendamento()`, `classificarServico()` ⭐ **NOVO**, `extrairEndereco()`                                |
-| **calendarService.js**     | Google Calendar API          | `inserirEventoTeste()`                                                                                                |
-| **dateUtils.js**           | Formatação de datas          | `extrairEFormatarData()`, `extrairHorario()`, `calcularHoraFim()`                                                     |
-
-### API (`/api`)
-
-| Arquivo                    | Responsabilidade                 | Funções Principais                            |
-| -------------------------- | -------------------------------- | --------------------------------------------- |
-| **server.js**              | Express entry point (porta 3000) | Rotas, middlewares, health check              |
-| **authController.js**      | Autenticação de usuários         | `register()`, `login()`                       |
-| **providersController.js** | Busca e matchmaking              | `searchProviders()`, `matchProviders()`       |
-| **schema.prisma**          | Modelo de dados PostgreSQL       | `Usuario`, `PerfilPrestador`, `PerfilCliente` |
-| **seed.js**                | Popula banco de teste            | Cria prestadores em Osasco                    |
+O **Agendador Autônomo** é um ecossistema dividido em dois módulos principais operando em conjunto:
+1. **Módulo de Interface (Bot Frontend)**: Um serviço interativo no Telegram responsável por engajar o usuário final, extrair contexto por meio de linguagem natural e compilar a intenção do cliente de forma estruturada.
+2. **Módulo de Negócio (API Backend)**: O motor lógico principal, construído com Node.js, Express e TypeScript, regido pelos princípios da **Arquitetura Hexagonal (Ports and Adapters)**. Assegura validações rígidas de entrada, injeção sistemática de dependências e total isolamento das regras de negócio do banco de dados persistente.
 
 ---
 
-## flow Completo
+## 2. Padrões Arquiteturais da API (Backend)
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        CLIENTE (Telegram)                        │
-└──────────────────────────┬──────────────────────────────────────┘
-                           │ "Pia entupida em Osasdo Veloso"
-                           ↓
-┌─────────────────────────────────────────────────────────────────┐
-│                    BOT (Node.js/Telegraf)                        │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │ conversationHandler.js → handleUserMessage()             │  │
-│  │ (State machine: PERGUNTAR_NOME → ... → AGENDAMENTO_DATA)│  │
-│  └──────────────┬───────────────────────────────────────────┘  │
-│                 │                                                 │
-│  ┌──────────────▼──────────────────────────────────────────┐   │
-│  │ aiService.js                                             │   │
-│  │ • extrairEndereco("Osasdo Veloso")                       │   │
-│  │   → {cidade:"Osasco", bairro:"Veloso"} ⭐ NOVO          │   │
-│  │ • extrairDadosDeAgendamento(data/hora)                  │   │
-│  │   → {dia:"30/03/2026", turno:"manhã"}                   │   │
-│  └──────────────┬───────────────────────────────────────────┘  │
-│                 │                                                 │
-│  ┌──────────────▼──────────────────────────────────────────┐   │
-│  │ API Call 1: GET /api/providers/search                   │   │
-│  │ ?cidade=Osasco&bairro=Veloso                            │   │
-│  │ Response: [Encanamento, Hidráulica] ⭐ NOVO             │   │
-│  └──────────────┬───────────────────────────────────────────┘  │
-│                 │                                                 │
-│  ┌──────────────▼──────────────────────────────────────────┐   │
-│  │ aiService.js → classificarServico()                     │   │
-│  │ ("pia entupida", [Encanamento, Hidráulica])             │   │
-│  │ → "Encanamento" ⭐ NOVO FEATURE                         │   │
-│  └──────────────┬───────────────────────────────────────────┘  │
-│                 │                                                 │
-│  ┌──────────────▼──────────────────────────────────────────┐   │
-│  │ Monta PAYLOAD limpo:                                    │   │
-│  │ { cliente, servicoBuscado: "Encanamento",               │   │
-│  │   agendamento }                                         │   │
-│  └──────────────┬───────────────────────────────────────────┘  │
-└──────────────────────┬───────────────────────────────────────────┘
-                       │
-                       │ POST /api/providers/match
-                       ↓
-┌─────────────────────────────────────────────────────────────────┐
-│              API EXPRESS (providersController.js)                │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │ matchProviders(req, res)                                 │  │
-│  │ • extrairEndereco(enderecoBruto) ⭐ NOVO                 │  │
-│  │   → {cidade:"Osasco", bairro:"Veloso"}                  │  │
-│  │ • Prisma query: WHERE servicosOferecidos HAS            │  │
-│  │   "Encanamento" AND (cidade CONTAINS Osasco OR          │  │
-│  │   bairro CONTAINS Veloso) ⭐ NOVO FILTRO                │  │
-│  │ • Retorna: { profissionalSelecionado, telefone, ... }   │  │
-│  └──────────────┬───────────────────────────────────────────┘  │
-└──────────────────────┬───────────────────────────────────────────┘
-                       │
-                       │ JSON Response
-                       ↓
-┌─────────────────────────────────────────────────────────────────┐
-│                    BOT (calendarService.js)                      │
-│                                                                   │
-│  inserirEventoTeste() → Google Calendar API                     │
-│  Cria evento no calendário do prestador encontrado             │
-└─────────────────────────────────────────────────────────────────┘
-```
+O serviço de API aboliu acoplamentos diretos à camada HTTP e à camada de persistência (`@prisma/client`), separando suas responsabilidades nas seguintes camadas:
+
+### 2.1. Camada de Apresentação (Interface Adapters)
+- **Routes & Middlewares**: Responsáveis por expor endpoints HTTP. O middleware `validateResource` intercepta cada roteamento e valida o conteúdo (Body, Params, Query) contra um contrato rígido de formato, bloqueando anomalias precocemente com formato de Status HTTP 400.
+- **Controllers**: Os controladores (`AuthController`, `ProvidersController`) não executam lógica de negócios. O papel primário deles é recepcionar as requisições verificadas, acionar os Casos de Uso adequados e mapear o resultado para formato de saída JSON e código de status correspondente.
+
+### 2.2. Camada de Domínio (Core Use Cases)
+- O núcleo da aplicação (`src/core/useCases`) que orquestra as regras da empresa. Os Casos de Uso (ex. `MatchProviderUseCase`) não conhecem ou enxergam a biblioteca Prisma e também ignoram bibliotecas de requisição, operando exlusivamente através das Interfaces (`IProviderRepository`, `IAIService`).
+
+### 2.3. Camada de Infraestrutura (Infrastructure)
+- **Repositórios e Adaptadores**: Traduzem a linguagem do domínio paras os serviços externos (Prisma ORM, Google Gemini API, Google Calendar API). 
+
+### 2.4. Ingestão de Dependência Centralizada
+- A classe global `ControllersFactory` age como provedor primário. Ela instancia os repositórios reais e os injeta nos controladores durante a inicialização do Servidor, viabilizando arquiteturalmente a separação absoluta dos conceitos por via do método de injeção de dependência via construtor.
 
 ---
 
-## 🤖 Bloco 1: O Robô do Telegram
+## 3. Estrutura de Diretórios e Componentes (Referência Rápida)
 
-### Estrutura de Pastas
+### API Core (`/api/src`)
+| Diretório/Arquivo | Responsabilidade Principal |
+| ----------------- | -------------------------- |
+| `server.ts` | Ponto principal de execução do aplicativo. Congrega o Express, gerencia rotas e vincula o middleware interceptador global de erros. |
+| `factories/ControllersFactory.ts` | Contêiner IoC (*Inversion of Control*). Inicializa e fornece acoplagem de dependências para o Express. |
+| `schemas/*.ts` | Definições em **Zod** garantindo contratos DTO rígidos para as rotas e tipagem validada via inferência estrita ao TypeScript. |
+| `routes/*.ts` | Exposição semântica de mapeamentos HTTP (`GET`, `POST`) encapsulando os identificadores base. |
+| `middlewares/errorHandler.ts` | Gerenciamento centralizado de exceções (`try/catch`), prevenindo vazamento perigoso de metadados internos de falhas arquiteturais ou de banco de dados (`Status 500`). |
+| `controllers/*.ts` | Receptores HTTP que acionam a execução de classes instanciadas do diretório Use Cases. |
+| `core/useCases/*.ts` | Arquivos detentores únicos da inteligência do módulo, com métodos definindo passos determinísticos padronizados por interfaces. |
+| `core/interfaces/*.ts` | Contratos estritos para injeção limpa de Repositórios e Serviços Secundários. |
+| `infrastructure/database/*` | Operações relativas ao armazenamento em PostgreSQL implementando contratos oficiais por meio do cliente Prisma. |
+| `infrastructure/external/*` | Adaptadores conversando com sistemas isolados externos como a API Gemini (`GeminiAIAdapter`) e o Google Calendar Services (`GoogleCalendarAdapter`). |
 
-```
-bot/
-├── index.js                              # ← ENTRY POINT
-├── .env                                  # Credenciais (TELEGRAM_TOKEN, GEMINI_API_KEY)
-├── package.json
-└── src/
-    ├── handlers/
-    │   └── conversationHandler.js        # ← STATE MACHINE
-    ├── services/
-    │   ├── aiService.js                  # ← IA ENGINE (Gemini)
-    │   └── calendarService.js            # ← GOOGLE CALENDAR
-    └── utils/
-        └── dateUtils.js                  # ← FORMATADORES DE DATA
-```
-
-### 📄 Arquivo: `bot/index.js`
-
-**O que faz:** Inicia o servidor Telegraf e coloca o bot online  
-**Quando mudar:** Nunca (a menos que queira mudar porta/timeout)
-
-```javascript
-// Apenas inicializa e ligamessage listeners
-const bot = new Telegraf(process.env.TELEGRAM_TOKEN);
-bot.on("text", handleUserMessage); // Todo texto vai para conversationHandler
-bot.launch(); // ← Bot online
-```
+### Bot (`/bot`) - (Fase Pré-Refatoração)
+| Diretório/Arquivo | Responsabilidade Principal |
+| ----------------- | -------------------------- |
+| `index.js` | Inicialização da ferramenta local Telegraf orientada à API do Telegram. |
+| `src/handlers/conversationHandler.js` | Estado transacional segmentando o progresso textual interativo percorrido pelos clientes. |
+| `src/services/aiService.js` | Procedimentos em linguagem legada vinculados superficialmente ao Google Gemini. |
+| `src/services/calendarService.js` | Transmissão obsoleta de agendamentos fictícios à Google Calendar API. |
 
 ---
 
-### 📄 Arquivo: `bot/src/handlers/conversationHandler.js`
+## 4. Fluxo Lógico e Processamento de Dados (Data Flow)
 
-**O que faz:** **State Machine** — controla em que etapa da conversa o usuário está
+O ciclo de interatividade do cliente no Telegram e sua respectiva propagação final de agendamento transcorre utilizando os seguintes degraus procedimentais (Modelo atualizado para API Hexagonal):
 
-**Fluxo de Estados:**
+### Estágio 1: Captação Semântica (Bot)
+1. **Cliente aciona o Bot Telegram**: "Minha pia da cozinha está entupida em Osasco no bairro Veloso."
+2. **Máquina de Estado (conversationHandler.js)**: Regula sessão local contendo progresso do agrupamento nominal.
+3. **Serviços de Análise IA**: Ferramenta legada `aiService.js` normaliza contexto extraindo: Município, Foco da Demanda.
 
-```
-/start → PERGUNTAR_NOME → PERGUNTAR_TELEFONE → PERGUNTAR_ENDERECO
-  → PERGUNTAR_PROBLEMA → AGENDAMENTO_DATA → [FIM + DELETE SESSION]
-```
-
-**Funções (cada uma é uma etapa):**
-
-| Função                               | O que faz                                                        | Próximo Passo        |
-| ------------------------------------ | ---------------------------------------------------------------- | -------------------- |
-| `fluxoBoasVindas(ctx, usuarioId)`    | Cria nova sessão, pergunta nome                              | `PERGUNTAR_TELEFONE` |
-| `fluxoNome(ctx, sessao)`             | Recebe nome, armazena, pergunta telefone                          | `PERGUNTAR_TELEFONE` |
-| `fluxoTelefone(ctx, sessao)`         | Recebe telefone, pergunta endereço                               | `PERGUNTAR_ENDERECO` |
-| `fluxoEndereco(ctx, sessao)`         | Recebe endereço bruto, pergunta problema                          | `PERGUNTAR_PROBLEMA` |
-| `fluxoProblema(ctx, sessao)`         | Recebe problema, pergunta data/hora                              | `AGENDAMENTO_DATA`   |
-| `fluxoAgendamentoData()`             | Norma. endereço + classifica serviço + chama API | DELETE SESSION       |
-
-**Dados armazenados em `sessoesAtivas[usuarioId]`:**
-
-```javascript
-{
-  passoAtual: "AGENDAMENTO_DATA",
-  dadosColetados: {
-    nome: "João Silva",
-    telefone: "(11) 98765-4321",
-    endereco: "Osasco, Veloso",     // Texto bruto do usuário
-    problema: "pia entupida",         // Texto bruto do usuário
-  }
-}
-```
-
-**⭐ NOVO (Fase 2.5):** A função `fluxoAgendamentoData()` agora faz:
-
-1. Normaliza endereço com IA
-2. Busca lista de serviços locais (`GET /search`)
-3. Classifica o problema com IA
-4. Envia payload limpo à API
+### Estágio 2: Operações Hexagonais Backend (Busca de Profissional)
+4. **Requisição Externa (HTTP POST)**: O bot constrói o agrupamento formatado estrito (ex. `{ descricaoServico: "Pia entupida", endereco: "Osasco Veloso" }`) para `http://api/providers/match`.
+5. **Autenticador Semântico (Middleware Zod)**: A rota `providersRoutes.ts` bloqueia e intercepta ativamente requisições desestruturadas baseadas em definições de `matchProviderSchema`. Requisições inválidas retornam automaticamente `HttpResponse 400` com catálogo de inconformidades estruturais.
+6. **Mapeamento de Ações (Controllers)**: Caso a transição semântica triunfe, a classe injetada `ProvidersController` resgata o respectivo construto e executa instrução central do núcleo de negócios `matchProviderUseCase.execute(...)`.
+7. **Regras de Encontro (Use Cases)**: A classe de casos de negócios (com seus artefatos dependentes injetados via interface estrita) implementa:
+   * Instruções de modelagem secundária de inteligência interconectando-se ao `GeminiAIAdapter`.
+   * Disparo relacional ao banco via `PrismaProviderRepository` avaliando localização contida estritamente.
+8. **Devolução do Acoplamento**: A finalização lógica de correspondência (Match) é envelopada e transferida aos blocos originais para formatação de estado 200, ou erros previstos de regra sistêmica englobam a mensagem no formato de estado correspondente, respondendo o requisitante via HTTP JSON.
 
 ---
 
-### 📄 Arquivo: `bot/src/services/aiService.js`
+## 5. Orientações de Gerenciamento Estrutural e Troubleshooting
 
-**O que faz:** Formata prompts e chama Google Gemini API
+### 5.1. Adicionando Parâmetros no Banco (Prisma Migrations)
+Qualquer acréscimo tabular em PostgreSQL deve passar por compilação segura da ORM para manutenção em todos ambientes.
+1. Modifique a estrutura `model` alvo no diretório oficial de `api/prisma/schema.prisma`.
+2. Aplique a modificação pelo terminal invocando método global de persistência do fabricante: `npx prisma migrate dev --name modificacao_nome`.
 
-**Funções:**
+### 5.2. O Express Compila porém emite Erros "Module Not Found" no arranque.
+Sistemas TypeScript com propriedades `ESModules` inseridas nativamente em `package.json` exigem especificidade máxima para detecção local de artefatos paralelos.
+**Procedimento Recomendado:**
+Verificar declarações nos blocos de agrupamento superiores do arquivo corrompido assegurando a presença imutável do sufixo relacional `.js` sobre módulos injetados (Ex. `import { Algo } from '../minhaPasta/MeuArquivo.js'`), pois os diretórios relativos convertidos pós-compilação operarão perante arquivos gerados neste formato nativo pelo NodeJS.
 
-| Função                                         | Input                             | Output             | Exemplo                             |
-| ---------------------------------------------- | --------------------------------- | ------------------ | ----------------------------------- |
-| `extrairDadosDeAgendamento(mensagem)`          | "Amanhã às 15h"                   | JSON com dia/turno | `{dia:"31/03", turno:"15h"}`        |
-| `classificarServico(texto, lista)`  | "pia entupida", `["Encanamento"]` | Serviço mapeado    | `"Encanamento"`                     |
-| `extrairEndereco(texto)`                       | "Osasdo Veloso"                   | JSON cidade/bairro | `{cidade:"Osasco",bairro:"Veloso"}` |
-
-**Detalhes Importantes:**
-
-- Usa `modelo.generateContent()` do Gemini 2.5 Flash
-- Sempre remove `json ` markers do response
-- Usa `JSON.parse()` para converter string → objeto
+### 5.3. Interceptar Inconformidades Globalmente (ErrorHandler)
+Todos os escopos das funções do Express em formato primitivo não absorvem exceções natas ativadas no nível sistêmico principal. Para prevenção contra perdas de continuidade operacional de thread interna é requerida a injeção estrita da diretiva terminal Express: `next(error)` repassando toda falha estrutural à linha do middleware Global presente em `server.ts`.
 
 ---
-
-### 📄 Arquivo: `bot/src/services/calendarService.js`
-
-**O que faz:** Integra com Google Calendar API para inserir eventos
-
-**Funções:**
-
-| Função                 | O que faz                          | Usado em                         |
-| ---------------------- | ---------------------------------- | -------------------------------- |
-| `inserirEventoTeste()` | Insere evento de teste no calendar | FUTURO: `fluxoAgendamentoData()` |
-
----
-
-### 📄 Arquivo: `bot/src/utils/dateUtils.js`
-
-**O que faz:** Formata strings de data/hora
-
-**Funções:**
-
-| Função                        | Input            | Output              |
-| ----------------------------- | ---------------- | ------------------- |
-| `extrairEFormatarData(dia)`   | "30 de março"    | "30/03/2026"        |
-| `extrairHorario(turno)`       | "tarde" ou "15h" | "14:00"             |
-| `calcularHoraFim(horaInicio)` | "14:00"          | "15:00" (1h depois) |
-
----
-
-## 🌐 Bloco 2: A API Backend
-
-### Estrutura de Pastas
-
-```
-api/
-├── server.js                           # ← ENTRY POINT Express
-├── .env                                # DATABASE_URL, JWT_SECRET
-├── package.json
-├── prisma/
-│   ├── schema.prisma                   # ← DATABASE MODEL
-│   └── seed.js                         # ← POPULA BANCO DE TESTE
-└── src/
-    ├── controllers/
-    │   ├── authController.js           # ← AUTH
-    │   └── providersController.js      # ← MATCHMAKING 
-    └── routes/
-        ├── authRoutes.js
-        └── providersRoutes.js
-```
-
----
-
-### 📄 Arquivo: `api/server.js`
-
-**O que faz:** Inicia Express, conecta rotas, health check
-
-```javascript
-const app = express();
-app.use(cors());
-app.use(express.json());
-
-// Health Check
-app.get("/health", (req, res) => res.json({ status: "OK" }));
-
-// Rotas
-app.use("/api/auth", authRoutes);
-app.use("/api/providers", providerRoutes);
-
-app.listen(3000); // ← Porta 3000
-```
-
----
-
-### 📄 Arquivo: `api/src/controllers/authController.js`
-
-**O que faz:** Registro e login de usuários (Prestadores/Clientes)
-
-**Funções:**
-
-| Função               | Input                  | Output    | Usa              |
-| -------------------- | ---------------------- | --------- | ---------------- |
-| `register(req, res)` | `{email, senha, tipo}` | JWT token | Bcryptjs, Prisma |
-| `login(req, res)`    | `{email, senha}`       | JWT token | Bcryptjs, Prisma |
-
----
-
-### 📄 Arquivo: `api/src/controllers/providersController.js`
-
-**O que faz:** Busca prestadores e faz matchmaking com cliente
-
-**Funções:**
-
-| Função                                 | Input                                    | Output                        |  Mudança                                         |
-| -------------------------------------- | ---------------------------------------- | ----------------------------- | -------------------------------------------------- |
-| `searchProviders(req, res)`            | `?cidade=X&bairro=Y`                     | Lista de serviços disponíveis | Sem mudança                                        |
-| `matchProviders(req, res)`  | `{cliente, servicoBuscado, agendamento}` | Prestador encontrado          | Normaliza endereço com IA, filtra com dados limpos |
-
-**Detalhes de `matchProviders()`:**
-
-```javascript
-async function matchProviders(req, res) {
-  const { cliente, servicoBuscado, agendamento } = req.body;
-
-  // ⭐ NOVO: Normaliza endereço com IA
-  const respostaEndereco = await extrairEndereco(cliente.enderecoBruto);
-  const enderecoParsed = JSON.parse(respostaEndereco);
-  const { cidade, bairro } = enderecoParsed;
-
-  // ⭐ NOVO: Filtra dinâmicos baseado em dados normalizados
-  const filtrosLocacao = [];
-  if (cidade)
-    filtrosLocacao.push({ cidade: { contains: cidade, mode: "insensitive" } });
-  if (bairro)
-    filtrosLocacao.push({ bairro: { contains: bairro, mode: "insensitive" } });
-
-  // ⭐ NOVO: Query com filtros aprimorados
-  const profissionaisEncontrados = await prisma.perfilPrestador.findMany({
-    where: {
-      servicosOferecidos: { has: servicoBuscado },
-      ...(filtrosLocacao.length > 0 && { OR: filtrosLocacao }),
-    },
-  });
-
-  // Retorna primeiro match
-  return res.json({
-    profissionalSelecionado: profissionaisEncontrados[0].nomeFantasia,
-  });
-}
-```
-
----
-
-### 📄 Arquivo: `api/prisma/schema.prisma`
-
-**O que faz:** Define structure do banco PostgreSQL
-
-**Tabelas:**
-
-```prisma
-model Usuario {
-  id              String      @id @default(uuid())
-  email           String      @unique
-  senha           String                  // Criptografada com Bcrypt
-  tipo            TipoUsuario @default(CLIENTE)
-  perfilCliente   PerfilCliente?          // Relação 1-para-1
-  perfilPrestador PerfilPrestador?        // Relação 1-para-1
-}
-
-model PerfilPrestador {
-  id                  String   @id @default(uuid())
-  nomeFantasia        String
-  telefoneContato     String
-  servicosOferecidos  String[] // Array de strings (ex: "Encanamento", "Hidráulica")
-  cidade              String
-  bairro              String
-  googleCalendarId    String?
-  usuarioId           String   @unique
-  usuario             Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
-}
-
-model PerfilCliente {
-  id          String   @id @default(uuid())
-  nome        String
-  telefone    String?
-  cidade      String?
-  bairro      String?
-  usuarioId   String   @unique
-  usuario     Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
-}
-```
-
----
-
-### 📄 Arquivo: `api/prisma/seed.js`
-
-**O que faz:** Popula banco com prestadores de teste
-
-**Usado para:** Testes rápidos sem precisar criar prestadores manualmente via API
-
-```bash
-npx prisma db seed  # ← Executa seed.js
-```
-
----
-
-## 🔄 Fluxo de Dados Detalhado
-
-### Cenário: Cliente quer encanador em Osasco
-
-```
-1️⃣ TELEGRAM (Cliente)
-   Cliente digita: "Pia entupida em Osasdo, Veloso"
-
-2️⃣ BOT (conversationHandler.js)
-   fluxoAgendamentoData() é chamado
-   sessao.dadosColetados = {problema: "pia entupida", endereco: "Osasdo, Veloso"}
-
-3️⃣ IA (aiService.js)
-   3a. extrairEndereco("Osasdo, Veloso")
-       → Gemini normaliza → {cidade: "Osasco", bairro: "Veloso"} 
-
-4️⃣ BOT chama SearchProviders (axios.get)
-   GET http://localhost:3000/api/providers/search?cidade=Osasco&bairro=Veloso
-   → API busca todos prestadores em Osasco/Veloso
-   → Retorna lista de serviços: ["Encanamento", "Hidráulica"]
-
-5️⃣ IA Classifica Serviço (aiService.js)
-   classificarServico("pia entupida", ["Encanamento", "Hidráulica"])
-   → Gemini extrai "Encanamento" 
-
-6️⃣ BOT Monta Payload Limpo
-   payloadParaAPI = {
-     cliente: {...},
-     servicoBuscado: "Encanamento",  ← Agora é valor REAL, não texto bruto
-     agendamento: {...}
-   }
-
-7️⃣ BOT Chama Match (axios.post)
-   POST http://localhost:3000/api/providers/match
-   Body: payloadParaAPI
-
-8️⃣ API (providersController.js)
-   matchProviders() recebe payload
-   8a. normaliza endereço novamente (backup) 
-   8b. busca Prisma WHERE:
-       - servicosOferecidos HAS "Encanamento"
-       - (cidade CONTAINS "Osasco" OR bairro CONTAINS "Veloso")
-   8c. Encontra: João Encanador (Osasco, Veloso) ✅
-
-9️⃣ Retorna
-   {
-     profissionalSelecionado: "João Encanador",
-     emailCalendario: "joao@gmail.com",
-     telefone: "(11) 98765-4321"
-   }
-
-🔟 BOT mostra ao Cliente
-    "Achei João Encanador para você! Agendado para 30/03 às 14h"
-```
-
----
-
-## 🛠️ Quick Maintenance
-
-### 🎯 Preciso adicionar uma nova pergunta no bot
-
-**Arquivo:** `bot/src/handlers/conversationHandler.js`
-
-Steps:
-
-1. Crie função: `async function fluxoMinhaPergunta(ctx, sessao) { ... }`
-2. Adicione ao switch em `handleUserMessage()`:
-   ```javascript
-   case "MINHA_PERGUNTA":
-     return fluxoMinhaPergunta(ctx, sessao);
-   ```
-3. Atualize a etapa anterior para `sessao.passoAtual = "MINHA_PERGUNTA"`
-
----
-
-### 🎯 Preciso mudar um campo do Prestador no banco
-
-**Arquivo:** `api/prisma/schema.prisma`
-
-Steps:
-
-1. Edit o modelo `PerfilPrestador`
-2. Rode:
-   ```bash
-   npx prisma migrate dev --name descricao_mudanca
-   ```
-3. Atualize `seed.js` se precisa alimentar novos campos
-
----
-
-### 🎯 A IA está classificando mal o serviço
-
-**Arquivo:** `bot/src/services/aiService.js`
-
-Steps:
-
-1. Ache a função `classificarServico()`
-2. Melhor o prompt (instruções ao Gemini):
-   ```javascript
-   const instrucao = `
-   Você é um sistema de busca semântica MUITO rigoroso.
-   Mapa "pia entupida" → "Encanamento"
-   Mapa "fiação ruim" → "Eletricista"
-   ...
-   `;
-   ```
-
----
-
-### 🎯 Preciso adicionar novo filtro de match
-
-**Arquivo:** `api/src/controllers/providersController.js`
-
-Função: `matchProviders()`
-
-Steps:
-
-1. Após normalizar endereço, adicione filtro:
-   ```javascript
-   // Filtro de raio de atuação (FUTURO)
-   if (cliente.latLng) {
-     // Calcular distância
-   }
-   ```
-2. Adicione à query Prisma antes do `findMany()`
-
----
-
-## ⚠️ Troubleshooting
-
-### Bot não responde
-
-**Checklist:**
-
-- [ ] `TELEGRAM_TOKEN` configurado em `.env` do bot?
-- [ ] Bot server rodando? (`node bot/index.js`)
-- [ ] API também rodando? (`npm run dev:api`)
-- [ ] PostgreSQL rodando? (`docker-compose ps`)
-
-**Logs:**
-
-```bash
-# Terminal bot
-node index.js
-# Deve mostrar: "Bot rodando! Vá para Telegram e mande /start"
-```
-
----
-
-### Sistema não encontra prestador
-
-**Checklist:**
-
-- [ ] Prestador está no banco? (`npx prisma studio` → check PerfilPrestador)
-- [ ] Serviço está em `servicosOferecidos` array?
-- [ ] Cidade/bairro está correto?
-- [ ] Endereço do cliente foi normalizado? (Check logs da IA)
-
-**Debug:**
-
-```bash
-# Teste a busca manualmente
-curl "http://localhost:3000/api/providers/search?cidade=Osasco&bairro=Veloso"
-# Deve retornar lista de serviços
-```
-
----
-
-### Erro ao inserir evento no Google Calendar
-
-**Possíveis causas:**
-
-- Google Calendar API não tem permissão
-- `googleCalendarId` do prestador está vazio ou inválido
-- Token expirou
-
-**Solução:**
-
-- Verificar credenciais GCP em `bot/credenciais-gcp.json`
-- Testar manualmente: `await inserirEventoTeste()`
-
----
-
-## 📊 Resumo Técnico
-
-| Aspecto             | Status          | Detalhes                                 |
-| ------------------- | --------------- | ---------------------------------------- |
-| **Bot Telegram**    | ✅ MVP          | Estado machine em conversationHandler.js |
-| **Normalização IA** | ✅ Fase 2.5     | extrairEndereco() + classificarServico() |
-| **Busca Dinâmica**  | ✅ MVP          | searchProviders() com Prisma             |
-| **Matchmaking**     | ✅ Fase 2.5     | matchProviders() com filtros aprimorados |
-| **Google Calendar** | 🔄 Em Progresso | Inserção funciona, Free/Busy REST        |
-| **Portal Web**      | 🔜 Próximo      | React/Vue com OAuth2                     |
-| **Geolocalização**  | 🔜 Próximo      | Google Maps API com raio de KM           |
-
----
-
-## 📞 Referências Rápidas
-
-**Rotas Principais:**
-
-- `GET /api/providers/search` — Busca serviços por cidade/bairro
-- `POST /api/providers/match` — Encontra prestador ideal
-- `POST /api/auth/register` — Cria novo usuário
-- `POST /api/auth/login` — Login com JWT
-
-**Variáveis Críticas:**
-
-- `process.env.TELEGRAM_TOKEN` — Credencial do bot
-- `process.env.GEMINI_API_KEY` — Credencial da IA
-- `process.env.DATABASE_URL` — Conexão PostgreSQL
-
-**Comandos Úteis:**
-
-```bash
-npx prisma studio  # Visualizar/editar banco graficamente
-npx prisma db seed # Popular banco com dados de teste
-npm run dev:api    # Inicia API (com hot-reload)
-npm run dev:bot    # Inicia Bot (direto)
-docker-compose up -d # PostgreSQL 🆙
-```
+*Este documento regula os contratos e formatos arquiteturais mandatórios do ecossistema e não deverá divergir na sua interpretação pelas ferramentas aplicadas nos desenvolvimentos sequenciais do ambiente referenciado.*

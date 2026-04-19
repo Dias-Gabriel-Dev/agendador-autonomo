@@ -8,11 +8,11 @@ Uma plataforma SaaS de **matchmaking de serviços com IA**, que conecta **Client
 - **Normalização de Local:** Corrige tipos e variações ("Osasdo Veloso" → "Osasco, Veloso")
 - **Filtro de Disponibilidade:** Consulta calendários reais (Google Calendar) dos prestadores
 
-**Status Atual:** MVP em Fase 2.5 — Core de matchmaking funcional + melhorias recentes de IA
+**Status Atual:** MVP em Fase 2.5 — Backend migrado para Arquitetura Hexagonal (TypeScript) e Core de matchmaking funcional.
 
 ---
 
-## � 2. Como Rodar o Projeto
+## 💻 2. Como Rodar o Projeto
 
 ### 2.1 Pré-requisitos
 
@@ -37,11 +37,13 @@ npx prisma migrate dev
 # 4. Popular banco (seed)
 npx prisma db seed
 
-# 5. Iniciar API (porta 3000) + Bot (Telegram)
-npm start
-# ou em paralelo:
-npm run dev:api &  # em um terminal
-npm run dev:bot    # em outro terminal
+# 5. Iniciar API (Backend)
+cd api
+npm run build
+npm run start
+# em outro terminal, inicie o Bot
+cd bot
+npm run dev
 ```
 
 ### 2.3 Testar a Integração
@@ -94,118 +96,71 @@ O cliente escolhe, e o bot automaticamente insere o evento no Google Calendar do
 
 ## 💻 5. Progresso do Desenvolvimento (Arquitetura em Monorepo)
 
-Struct atual: `api/` (Backend) + `bot/` (Telegram) + Docker (PostgreSQL)
+Estrutura atual: `api/` (Backend TypeScript via Arquitetura Hexagonal) + `bot/` (Telegram) + Docker (PostgreSQL)
 
 ### ✅ Concluído (Fase 1: Bot e Integrações)
 
-- **Bot Inteligente Modular (Telegram):** Máquina de estados (`conversationHandler`) em Node.js/ESM
+- **Bot Inteligente Modular (Telegram):** Máquina de estados Node.js
 - **Conversação Natural via IA:** Cliente digita livremente; Gemini extrai intenção, data, local
 - **Agendamento Automático:** Bot integra evento no Google Calendar do prestador encontrado
 
 ### ✅ Concluído (Fase 2: Backend, Banco de Dados e Auth)
 
-- **PostgreSQL + Prisma ORM:** Schema relacional com `Usuario` → `PerfilPrestador` / `PerfilCliente`
-- **API RESTful Express.js:** Rotas `/api/auth/register`, `/api/providers/search`, `/api/providers/match`
-- **Segurança:** Bcryptjs + JWT para autenticação
-- **Seed Script:** Popula banco com prestadores de teste (Osasco-SP)
+- **PostgreSQL + Prisma ORM:** Schema relacional de `Usuarios` e perfis segmentados.
+- **Arquitetura Hexagonal:** Desacoplamento do domínio via Interfaces, IoC (ControllersFactory) e Injeção de Dependências.
+- **Validação Rigorosa:** Middlewares operando contratos Zod para garantir integridade.
+- **Segurança:** Bcryptjs + JWT para autenticação com isolamento de metadados de erro (`globalErrorHandler`).
 
-### 🆕 Concluído (Fase 2.5: Matchmaking Inteligente com IA — RECENTEMENTE ADICIONADO)
+### 🆕 Concluído (Fase 2.5: Matchmaking Inteligente com IA)
 
-- **Classificação de Serviço (Busca Semântica):** Bot agora chama `classificarServico(problema, listaDeServiços)` para mapear "pia entupida" → "Encanamento" corretamente
-- **Normalização de Endereço:** Função `extrairEndereco()` converte "Osasdo Veloso" → `{ cidade: "Osasco", bairro: "Veloso" }`
-- **Payload Melhorado:** Bot busca lista de serviços locais ANTES de classificar, garantindo precisão
-- **Query de Match Aprimorada:** Backend normaliza endereço com IA + filtra com dados limpos, reduzindo falsos negativos
-
-**Como Funciona Agora:**
-
-```
-Cliente: "pia entupida em Osasdo Veloso"
-    ↓ (IA normaliza endereço)
-Bot: Procura por serviços em "Osasco, Veloso" → ["Encanamento", "Hidráulica"]
-    ↓ (IA classifica problema)
-Bot: Classifica "pia entupida" → "Encanamento"
-    ↓ (Payload limpo enviado)
-API: Busca por "Encanamento" + "Osasco" + "Veloso" = ✅ Match encontrado!
-```
+- **Classificação de Serviço:** Bot classifica o problema ("pia entupida" → "Encanamento").
+- **Backend Clean:** Backend recebe o payload filtrado processando queries unificadas injetadas sobre o Prisma.
 
 ### 🔜 Próximos Passos (Fase 3+)
 
-- [ ] **Portal Web Prestador:** React/Vue login com JWT, editar perfil, conectar Google Calendar (OAuth2)
-- [ ] **Geolocalização Real:** Substituir busca por strings → API Google Maps com cálculo de raio (km)
-- [ ] **Free/Busy API:** Consultar Google Calendar **antes** de retornar prestadores (agenda em tempo real)
-- [ ] **Menu de Múltiplas Escolhas:** Se encontrar vários, oferecer lista numerada ao cliente
-- [ ] **WhatsApp Integration:** Evoluir de Telegram para WhatsApp Business API
+- [ ] **Refatoração do Bot:** Elevar o Bot Telegram legando aos padrões sólidos TypeScript.
+- [ ] **Portal Web Prestador:** Frontend e Dashboard para cadastro autônomo.
+- [ ] **Integrações Assíncronas:** Free/Busy API do Google Calendar em tempo real.
 
 ---
 
 ## 📁 6. Estrutura de Pastas e Arquitetura
 
-### `/bot` — Telegram Bot + IA Engine
+### `/bot` — Telegram Bot + IA Engine (Legado)
 
 ```
 bot/
-├── index.js                 # Entry point (inicia Telegraf)
-├── .env                     # Credenciais: TELEGRAM_TOKEN, GEMINI_API_KEY
+├── index.js                 # Entry point Telegram
+├── .env                     # Credenciais
 ├── src/
-│   ├── handlers/
-│   │   └── conversationHandler.js   # State machine (Nome → Telefone → Endereço → Problema → Data)
-│   │                                # Classifica serviço + normaliza endereço antes do match
-│   ├── services/
-│   │   ├── aiService.js             # Chamadas ao Gemini (extrair data, classificar serviço, normalizar endereço)
-│   │   └── calendarService.js       # Integração Google Calendar API
-│   └── utils/
-│       └── dateUtils.js             # Formatação de datas/horas
+│   ├── handlers/            # State machine do Chat
+│   └── services/            # Antigos serviços de IA e Calendar
 ```
 
-### `/api` — Backend Express + Banco de Dados
+### `/api` — Backend Express (Arquitetura Hexagonal TypeScript)
 
 ```
 api/
-├── server.js                # Express entry point (porta 3000)
-├── .env                     # DATABASE_URL, JWT_SECRET
-├── prisma/
-│   ├── schema.prisma        # Schema: Usuario, PerfilPrestador, PerfilCliente
-│   └── seed.js              # Script para popular prestadores de teste
+├── src/server.ts            # Bootstrapper IoC Express
+├── prisma/                  # DB, Schema e Migrations
 └── src/
-    ├── controllers/
-    │   ├── authController.js         # Register + Login (JWT)
-    │   └── providersController.js    # Busca dinâmica + Matchmaking
-    │                                 # Normaliza endereço + filtra com IAs em tempo real
-    └── routes/
-        ├── authRoutes.js
-        └── providersRoutes.js
+    ├── core/                # Camada de Negócios 
+    │   ├── interfaces/      # Contratos de Desacoplamento
+    │   └── useCases/        # Inteligência e Orquestração Pura
+    ├── controllers/         # Operadores HTTP
+    ├── infrastructure/      # Adaptadores de Serviços Externos e DB
+    ├── middlewares/         # Bloqueios e Validações (Zod)
+    ├── schemas/             # Contratos DTO
+    └── factories/           # Controladora Central de Injeções
 ```
-
-### `/mcp-servers` — Model Context Protocol (futuro)
-
-Estrutura para extensão via agentes AI.
 
 ---
 
 ## 🛠️ 7. Guia de Manutenção & Extensão
 
-### Adicionar Nova Etapa na Conversa?
+O acesso tático às pastas e regras arquiteturais foi movido para o **Guia Oficial de Engenharia**. Consulte o arquivo nativo na raiz do projeto:
 
-Edite `bot/src/handlers/conversationHandler.js`:
-
-- Crie nova função `fluxoNovaEtapa()`
-- Adicione case no switch (`PERGUNTAR_NOVAETAPA`)
-
-### Mudar Campos do Prestador?
-
-Edite `api/prisma/schema.prisma`:
-
-```bash
-npx prisma migrate dev --name descricao_mudanca
-```
-
-### Melhorar Classificação de IA?
-
-Edite o prompt em `bot/src/services/aiService.js` função `classificarServico()`.
-
-### Adicionar Novo Filtro de Match?
-
-Edite `api/src/controllers/providersController.js` função `matchProviders()` — adicione filtro antes da query.
+> 📘 Ler a documentação completa em: [`GUIA_ARQUITETURA.md`](./GUIA_ARQUITETURA.md)
 
 ---
 
@@ -213,13 +168,12 @@ Edite `api/src/controllers/providersController.js` função `matchProviders()` �
 
 | Camada              | Tecnologia                 | Propósito                                      |
 | ------------------- | -------------------------- | ---------------------------------------------- |
-| **Bot/Conversação** | Telegraf 4.x + Node.js ESM | Handler de mensagens Telegram                  |
+| **Bot/Conversação** | Telegraf 4.x + Node.js     | Handler de mensagens Telegram                  |
+| **Plataforma Core** | TypeScript + Express 5     | API sob o Padrão Porta-Adaptador               |
+| **Data Integrity**  | Zod Schemas                | Barreira de entrada DTO contra Payload Corrompido|
 | **IA**              | Google Gemini 2.5 Flash    | Classificação semântica + NLP                  |
-| **Backend**         | Express.js 5.x             | API REST + Matchmaking                         |
-| **Database**        | PostgreSQL 15 + Prisma ORM | Persistência de usuários/prestadores           |
-| **Auth**            | JWT + Bcryptjs             | Segurança                                      |
-| **Integração**      | Google Calendar API        | Agenda de prestadores (read-only por enquanto) |
-| **DevOps**          | Docker + docker-compose    | PostgreSQL containerizado                      |
+| **Database**        | PostgreSQL 15 + Prisma ORM | Persistência Relacional via Repository Pattern   |
+| **DevOps**          | Docker + docker-compose    | Ambiente replicável local                      |
 
 ---
 

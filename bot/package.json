@@ -4,7 +4,9 @@
   "description": "Telegram Bot e AI Engine",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "build": "tsc"
   },
   "keywords": [],
   "author": "",
@@ -12,11 +14,14 @@
   "type": "module",
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
-    "agendador-autonomo-monorepo": "file:..",
     "axios": "^1.13.6",
     "dotenv": "^17.3.1",
     "googleapis": "^171.4.0",
-    "nodemon": "^3.1.14",
     "telegraf": "^4.16.3"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3",
+    "tsx": "^4.4.0",
+    "@types/node": "^20.10.0"
   }
 }

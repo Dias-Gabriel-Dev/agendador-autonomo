@@ -3,7 +3,7 @@ import {
   extrairDadosDeAgendamento,
   classificarServico,
   extrairEndereco,
-} from "../../api/src/services/aiServices.js";
+} from "../../../api/src/services/aiServices.js";
 import {
   extrairEFormatarData,
   extrairHorario,

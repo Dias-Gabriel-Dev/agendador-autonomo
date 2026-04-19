@@ -2,11 +2,11 @@ import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
 import { Telegraf } from "telegraf";
-import { validateEnviroment } from "./src/config/validateEnv.js";
-import { handleUserMessage } from "./src/handlers/conversationHandler.js";
+import { validateEnviroment } from "./config/validateEnv.js";
+import { handleUserMessage } from "./handlers/conversationHandler.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: path.join(__dirname, ".env") });
+dotenv.config();
 
 const env = validateEnviroment();
 

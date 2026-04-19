@@ -1,23 +1,44 @@
+# ==============================================================================
+# Node.js e Build
+# ==============================================================================
 node_modules/
-scripts/
-.env
-.env.local
-.env.development
-.env.test
-.env.production
+dist/
+build/
+*.tsbuildinfo
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
-mcp-servers/cline-community/.vscode/
 
-# Credenciais e chaves do Google Cloud
+# ==============================================================================
+# Variáveis de Ambiente e Credenciais (CRÍTICO)
+# ==============================================================================
+.env
+.env.*
+!.env.example
+
+# Chaves do Google Cloud Service Accounts
 *-gcp.json
 *credentials*.json
 *key*.json
 
-# Ferramentas locais de desenvolvimento (VS Code / AI Tools)
+# ==============================================================================
+# Agentes de IA, Kits e Ferramentas
+# ==============================================================================
+.agent/
+.specify/
+specs/
 mcp-servers/
-.vscode/cline_mcp_settings.json
 .clinerules
+.cursorrules
+.github/
+docs/
+
+# ==============================================================================
+# IDEs e OS
+# ==============================================================================
 .vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
